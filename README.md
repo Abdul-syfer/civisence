@@ -1,73 +1,69 @@
-# Welcome to your Lovable project
+# Smart Civic Issue Reporting Platform
 
-## Project info
+# Project Overview
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+The Smart Civic Issue Reporting Platform is a modern civic engagement system designed to help citizens report city infrastructure problems quickly and efficiently.
 
-## How can I edit this code?
+Citizens can submit reports using photos and location data. The system analyzes the issue, aggregates community confirmations, and routes the complaint to the appropriate municipal department. Authorities manage incoming reports through a dedicated dashboard where they can review issues, track progress, upload resolution proof, and mark tasks as completed.
 
-There are several ways of editing your application.
+The platform promotes transparency, faster response times, and better communication between citizens and municipal authorities.
 
-**Use Lovable**
+# Getting Started
+Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Make sure the following are installed on your system:
+Node.js (v18 or later recommended)
+npm or yarn
+Git
 
-Changes made via Lovable will be committed automatically to this repo.
+# Installation
+Clone the repository and install dependencies.
+# Clone the repository
+git clone <YOUR_REPOSITORY_URL>
+# Navigate to the project directory
+cd <PROJECT_FOLDER_NAME>
+# Install dependencies
+npm install
 
-**Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Running the Development Server
+Start the local development environment.
 npm run dev
-```
 
-**Edit a file directly in GitHub**
+The application will start with hot reloading enabled.
+Open your browser and navigate to the local development URL displayed in the terminal.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+# Project Structure
+src/
+components/        Reusable UI components
+pages/             Application pages
+features/          Feature modules
+hooks/             Custom React hooks
+services/          API and backend communication
+utils/             Helper functions
+assets/            Static assets
 
-**Use GitHub Codespaces**
+# Technology Stack
+The project is built using modern web technologies:
+React
+TypeScript
+Vite
+Tailwind CSS
+shadcn/ui
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Build for Production
+To create a production build:
+npm run build
 
-## What technologies are used for this project?
+# To preview the production build locally:
+npm run preview
 
-This project is built with:
+# Deployment
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The application can be deployed to any modern hosting platform that supports static or frontend deployments, such as:
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Vercel
+Netlify
+AWS
+DigitalOcean
+Cloudflare Pages

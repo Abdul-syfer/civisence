@@ -19,9 +19,9 @@ Git
 # Installation
 Clone the repository and install dependencies.
 # Clone the repository
-git clone <YOUR_REPOSITORY_URL>
+git clone (https://github.com/Abdul-syfer/civisence)
 # Navigate to the project directory
-cd <PROJECT_FOLDER_NAME>
+cd civisence
 # Install dependencies
 npm install
 

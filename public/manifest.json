@@ -1,0 +1,16 @@
+{
+  "short_name": "CivicSense",
+  "name": "CivicSense: Citizen Reporting Platform",
+  "icons": [
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff"
+}

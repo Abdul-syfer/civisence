@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    basicSsl(),
+    mode === "development" && basicSsl(),
     mode === "development" && componentTagger()
   ].filter(Boolean),
   resolve: {

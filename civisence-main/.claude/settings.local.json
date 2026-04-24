@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find \"d:/civic v3/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" \\\\\\) -exec grep -l \"collection\\(db,\" {} \\\\;)",
+      "Bash(npx firebase:*)",
+      "Bash(gh run:*)",
+      "WebFetch(domain:nominatim.openstreetmap.org)",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(grep -E \"w-\\\\[|min-w-\\\\[|px-[0-9]{2,}|grid-cols-[3-9]\\(?!.*sm:\\)\")",
+      "Bash(firebase deploy:*)"
+    ]
+  }
+}

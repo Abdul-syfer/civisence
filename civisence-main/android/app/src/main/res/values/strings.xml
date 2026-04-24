@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CivicSense</string>
+    <string name="title_activity_main">CivicSense</string>
+    <string name="package_name">com.civicsense.app</string>
+    <string name="custom_url_scheme">com.civicsense.app</string>
+</resources>

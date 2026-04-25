@@ -1,12 +1,16 @@
+import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/authContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { User, Phone, Building2, MapPin, LogOut, Shield } from "lucide-react";
+import { User, Phone, Building2, MapPin, LogOut, Shield, Bell } from "lucide-react";
+import { motion } from "framer-motion";
+import NotificationHistorySheet from "@/components/NotificationHistorySheet";
 
 const AuthorityAccount = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [notifHistoryOpen, setNotifHistoryOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background pb-safe-nav">
@@ -41,9 +45,27 @@ const AuthorityAccount = () => {
           ))}
         </div>
 
+        {/* Notification History */}
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          onClick={() => setNotifHistoryOpen(true)}
+          className="w-full mt-4 flex items-center gap-3 bg-card border border-border rounded-2xl px-5 py-4 hover:bg-accent/50 transition-colors text-left"
+        >
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Notification History</p>
+            <p className="text-xs text-muted-foreground">View all past notifications</p>
+          </div>
+          <span className="text-muted-foreground text-lg leading-none">›</span>
+        </motion.button>
+
         <Button
           variant="outline"
-          className="w-full mt-6 text-destructive border-destructive/20 hover:bg-destructive/5"
+          className="w-full mt-4 text-destructive border-destructive/20 hover:bg-destructive/5"
           onClick={() => { logout(); navigate("/login"); }}
         >
           <LogOut className="w-4 h-4 mr-2" /> Logout
@@ -51,6 +73,14 @@ const AuthorityAccount = () => {
       </div>
 
       <BottomNav />
+
+      {user?.uid && (
+        <NotificationHistorySheet
+          userId={user.uid}
+          open={notifHistoryOpen}
+          onClose={() => setNotifHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 };

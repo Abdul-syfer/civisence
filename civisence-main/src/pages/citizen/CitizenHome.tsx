@@ -45,17 +45,21 @@ const CitizenHome = () => {
     fetchIssues();
   }, []);
 
+  // Issues with no city field are treated as belonging to the local city
+  // (all pre-existing issues were created before city was stored)
+  const inUserCity = (i: CivicIssue) => !i.city || i.city === user?.city;
+
   // Apply location scope first
   const locationFiltered = (() => {
     if (locationScope === "ward") return issues.filter(i => i.ward === user?.ward);
-    if (locationScope === "city") return issues.filter(i => i.city === user?.city);
+    if (locationScope === "city") return issues.filter(inUserCity);
     return issues; // district / state = all issues
   })();
 
   // Count per scope tab (total issues in that scope)
   const countForScope = (scope: LocationScope) => {
     if (scope === "ward") return issues.filter(i => i.ward === user?.ward).length;
-    if (scope === "city") return issues.filter(i => i.city === user?.city).length;
+    if (scope === "city") return issues.filter(inUserCity).length;
     return issues.length;
   };
 

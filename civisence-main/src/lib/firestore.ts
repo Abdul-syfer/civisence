@@ -234,6 +234,18 @@ export const markNotificationRead = async (notifId: string) => {
     await updateDoc(doc(db, "notifications", notifId), { read: true });
 };
 
+export const clearNotifications = async (userId: string) => {
+    const q = query(collection(db, "notifications"), where("userId", "==", userId));
+    const snap = await getDocs(q);
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+};
+
+export const getAllNotifications = async (userId: string): Promise<AppNotification[]> => {
+    const q = query(collection(db, "notifications"), where("userId", "==", userId), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+};
+
 // Real-time issue subscriptions
 export const subscribeToAllIssues = (callback: (issues: CivicIssue[]) => void) => {
     const q = query(collection(db, "issues"), orderBy("reportedAt", "desc"));

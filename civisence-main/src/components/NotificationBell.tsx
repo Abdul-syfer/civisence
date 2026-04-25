@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell } from "lucide-react";
+import { Bell, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
-import { subscribeToNotifications, markNotificationRead } from "@/lib/firestore";
+import { subscribeToNotifications, markNotificationRead, clearNotifications } from "@/lib/firestore";
 import { AppNotification } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const NotificationBell = () => {
   const { user } = useAuth();
@@ -30,14 +31,28 @@ const NotificationBell = () => {
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const [clearing, setClearing] = useState(false);
 
   const handleToggle = () => {
     const willOpen = !open;
     setOpen(willOpen);
     if (willOpen && unreadCount > 0) {
-      // Await all reads so UI stays in sync with Firestore
       Promise.all(notifications.filter(n => !n.read).map(n => markNotificationRead(n.id)))
         .catch(console.error);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!user?.uid || clearing) return;
+    setClearing(true);
+    try {
+      await clearNotifications(user.uid);
+      toast.success("Notifications cleared");
+      setOpen(false);
+    } catch {
+      toast.error("Failed to clear notifications");
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -66,8 +81,18 @@ const NotificationBell = () => {
             transition={{ duration: 0.15 }}
             className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
           >
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <h3 className="font-display font-semibold text-sm text-foreground">Notifications</h3>
+              {notifications.length > 0 && (
+                <button
+                  onClick={handleClear}
+                  disabled={clearing}
+                  className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 font-medium disabled:opacity-50 transition-opacity"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  {clearing ? "Clearing…" : "Clear all"}
+                </button>
+              )}
             </div>
             <div className="max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (

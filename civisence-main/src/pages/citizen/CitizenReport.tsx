@@ -84,17 +84,18 @@ const CitizenReport = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Camera fail:", err);
+      const e = err as Error & { name?: string };
       let errMsg = "Unknown camera error";
-      if (err.message === "INSECURE_CONTEXT") {
+      if (e.message === "INSECURE_CONTEXT") {
          errMsg = "Browser blocked camera. You must be on HTTPS or 'localhost' to access hardware.";
-      } else if (err.name === "NotAllowedError") {
+      } else if (e.name === "NotAllowedError") {
          errMsg = "You denied browser camera permissions.";
-      } else if (err.name === "NotFoundError") {
+      } else if (e.name === "NotFoundError") {
          errMsg = "No physical camera detected on this device.";
       } else {
-         errMsg = err.message || "Failed to start hardware camera.";
+         errMsg = e.message || "Failed to start hardware camera.";
       }
       setCameraError(errMsg);
       toast.error(errMsg);
@@ -180,7 +181,7 @@ const CitizenReport = () => {
       { enableHighAccuracy: true, timeout: HARD_TIMEOUT_MS, maximumAge: 0 }
     );
     watchIdRef.current = id;
-  }, [stopWatch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stopWatch]);
 
   // Clean up watchPosition when component unmounts
   useEffect(() => { return () => stopWatch(); }, [stopWatch]);
@@ -273,7 +274,7 @@ const CitizenReport = () => {
           const res = await fetch(photoPreview);
           const blob = await res.blob();
           finalImageUrl = await uploadToCloudinary(blob);
-        } catch (uploadErr: any) {
+        } catch (uploadErr: unknown) {
           console.error("Cloudinary upload fail:", uploadErr);
           toast.error("Image upload failed. Submitting report anyway.");
         }

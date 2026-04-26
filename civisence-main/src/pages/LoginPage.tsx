@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
-import { Mail, Phone, Lock, User, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, User, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, UserCredential } from "firebase/auth";
 
 const ADMIN_EMAILS = ["syfer071@gmail.com", "jayasurya.create@gmail.com"];
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -36,7 +36,7 @@ const LoginPage = () => {
 
     setLoading(true);
     try {
-      let userCredential;
+      let userCredential: UserCredential;
       try {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       } catch (err: unknown) {
@@ -99,7 +99,7 @@ const LoginPage = () => {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider);
       // Logic handled by onAuthStateChanged in AuthContext + profile redirect
       // but we toast here for instant feedback
       toast.success("Logging in with Google...");
@@ -119,30 +119,6 @@ const LoginPage = () => {
       setLoading(false);
     }
   };
-
-  const handleForgotPassword = async () => {
-    if (!email) {
-      toast.error("Please enter your email address first");
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      toast.success("Password reset email sent! Check your inbox (and spam folder).");
-    } catch (err: unknown) {
-      const error = err as Error & { code?: string };
-      if (error.code === "auth/user-not-found" || error.code === "auth/invalid-email") {
-        toast.error("No account found with that email address.");
-      } else if (error.code === "auth/too-many-requests") {
-        toast.error("Too many requests. Please wait before trying again.");
-      } else {
-        toast.error(error.message || "Failed to send reset email.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
 
   const handleAuthorityLogin = async () => {
     if (!officerId || !officerPassword) {
@@ -206,8 +182,17 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-10">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10">
       <div className="w-full max-w-md">
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="group inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2 rounded-full transition-all mb-6 hover:opacity-90"
+          style={{ background: "var(--civic-navy)" }}
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-1" /> Get Out
+        </button>
+
         <div className="text-center mb-8 animate-fade-in">
           <img src={logo} alt="CivicSense" className="w-24 h-24 mx-auto mb-4" />
           <h1 className="font-display text-2xl font-bold text-foreground">CivicSense</h1>
@@ -229,7 +214,7 @@ const LoginPage = () => {
                 <Label htmlFor="password">Password</Label>
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
+                  onClick={() => navigate("/reset-password")}
                   className="text-[10px] text-primary hover:underline font-medium"
                 >
                   Forgot Password?

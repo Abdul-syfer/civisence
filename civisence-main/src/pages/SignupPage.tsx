@@ -68,10 +68,15 @@ const SignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 py-10">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10">
       <div className="w-full max-w-md">
-        <button onClick={() => navigate("/login")} className="flex items-center gap-1 text-sm text-muted-foreground mb-6 hover:text-foreground transition-colors" disabled={loading}>
-          <ArrowLeft className="w-4 h-4" /> Back to Login
+        <button
+          onClick={() => navigate("/login")}
+          className="group inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2 rounded-full transition-all mb-6 hover:opacity-90"
+          style={{ background: "var(--civic-navy)" }}
+          disabled={loading}
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-1" /> Back to Login
         </button>
 
         <div className="text-center mb-8 animate-fade-in">

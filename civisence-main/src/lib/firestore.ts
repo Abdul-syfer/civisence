@@ -18,6 +18,10 @@ export const createUserProfile = async (uid: string, profileData: Omit<UserProfi
     return profile;
 };
 
+export const updateUserProfile = async (uid: string, updates: Partial<Omit<UserProfile, "uid" | "createdAt" | "role">>) => {
+    await updateDoc(doc(db, "users", uid), updates);
+};
+
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {

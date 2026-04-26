@@ -16,7 +16,7 @@ import logo from "@/assets/logo.png";
 import {
   BarChart3, Users, FileText, Building2, AlertTriangle, Settings,
   LogOut, Menu, X, Plus, Search, Shield, MapPin, Phone, Trash2, Edit, Eye,
-  Clock, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Save, Map
+  Clock, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Save, Map, ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import WardPickerMap from "@/components/WardPickerMap";
 const navItems = [
   { path: "/admin", icon: BarChart3, label: "Dashboard" },
   { path: "/admin/authorities", icon: Shield, label: "Authorities" },
+  { path: "/admin/issues", icon: FileText, label: "Issues" },
   { path: "/admin/ward-map", icon: Map, label: "Ward Map" },
   { path: "/admin/departments", icon: Building2, label: "Departments" },
   { path: "/admin/escalations", icon: AlertTriangle, label: "Escalations" },
@@ -73,13 +74,20 @@ export const AdminLayout = ({ children }: { children: React.ReactNode }) => {
             </Link>
           ))}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border">
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-1">
           <button
             type="button"
             onClick={() => { logout(); navigate("/login"); }}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/5 w-full transition-all"
           >
             <LogOut className="w-4 h-4" /> Logout
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground w-full transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" /> Get Out
           </button>
         </div>
       </aside>

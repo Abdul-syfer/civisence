@@ -244,7 +244,7 @@ const AuthorityReports = () => {
         if (resolvedImageUrl) extra.resolvedImageUrl = resolvedImageUrl;
         if (resolvedLat !== undefined) extra.resolvedLat = resolvedLat;
         if (resolvedLng !== undefined) extra.resolvedLng = resolvedLng;
-        if (Object.keys(extra).length) await updateIssueFields(id, extra as any);
+        if (Object.keys(extra).length) await updateIssueFields(id, extra as Partial<CivicIssue>);
       }
 
       toast.success(`Issue marked as ${statusLabels[status]}`);
@@ -510,7 +510,7 @@ const AuthorityReports = () => {
                 const extra: Record<string, unknown> = { resolvedImageUrl };
                 if (lat !== undefined) extra.resolvedLat = lat;
                 if (lng !== undefined) extra.resolvedLng = lng;
-                await updateIssueFields(id, extra as any);
+                await updateIssueFields(id, extra as Partial<CivicIssue>);
                 toast.success("Resolved photo saved!");
               } else {
                 await handleUpdateStatus(id, "resolved", resolvedImageUrl, lat, lng);

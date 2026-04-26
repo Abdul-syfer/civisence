@@ -11,6 +11,7 @@ interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   logout: async () => { },
+  refreshUser: async () => { },
   isAuthenticated: false,
 });
 
@@ -75,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const isOffline =
             error instanceof Error &&
             (error.message.includes("offline") ||
-              (error as any).code === "unavailable");
+              (error as Error & { code?: string }).code === "unavailable");
 
           if (firebaseUser && isOffline) {
             const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email ?? "");
@@ -105,6 +107,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  const refreshUser = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return;
+    const docSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+    if (docSnap.exists()) setUser(docSnap.data() as UserProfile);
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -118,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, isAuthenticated: !!user && !loading }}>
+    <AuthContext.Provider value={{ user, loading, logout, refreshUser, isAuthenticated: !!user && !loading }}>
       {children}
     </AuthContext.Provider>
   );

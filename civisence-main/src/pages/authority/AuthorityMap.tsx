@@ -78,7 +78,7 @@ const AuthorityMap = () => {
   }, [user?.ward, user?.department]);
 
   // Location on mount
-  useEffect(() => { requestLocation(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { requestLocation(); }, []);
 
   const requestLocation = () => {
     setLocating(true);
@@ -120,7 +120,7 @@ const AuthorityMap = () => {
         if (resolvedImageUrl) extra.resolvedImageUrl = resolvedImageUrl;
         if (resolvedLat !== undefined) extra.resolvedLat = resolvedLat;
         if (resolvedLng !== undefined) extra.resolvedLng = resolvedLng;
-        if (Object.keys(extra).length) await updateIssueFields(issue.id, extra as any);
+        if (Object.keys(extra).length) await updateIssueFields(issue.id, extra as Partial<CivicIssue>);
       }
       if (issue.userId) {
         const messages: Partial<Record<CivicIssue["status"], string>> = {

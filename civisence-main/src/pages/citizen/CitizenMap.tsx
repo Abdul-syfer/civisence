@@ -44,21 +44,19 @@ const CitizenMap = () => {
   const [locating, setLocating] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [loading, setLoading] = useState(true);
   const [panToUser, setPanToUser] = useState(0); // bump to trigger map pan
 
   // Load all issues once
   useEffect(() => {
     getAllIssues()
       .then(setIssues)
-      .catch(() => toast.error("Failed to load issues"))
-      .finally(() => setLoading(false));
+      .catch(() => toast.error("Failed to load issues"));
   }, []);
 
   // Request location on mount
   useEffect(() => {
     requestLocation();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const requestLocation = () => {
     setLocating(true);
@@ -250,25 +248,6 @@ const CitizenMap = () => {
           }
         </motion.button>
       </div>
-
-      {/* ── Stats bar (bottom of map, above bottom nav) ─── */}
-      {!loading && (
-        <div className="absolute bottom-20 left-4 right-4 z-[1001] pointer-events-none">
-          <div className="flex gap-2 justify-center">
-            {[
-              { color: severityColors.severe, label: "Severe", count: issues.filter(i => i.severity === "severe").length },
-              { color: severityColors.medium, label: "Medium", count: issues.filter(i => i.severity === "medium").length },
-              { color: severityColors.minor, label: "Minor", count: issues.filter(i => i.severity === "minor").length },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-1.5 bg-card/90 backdrop-blur-sm rounded-full px-3 py-1 border border-border shadow text-xs">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                <span className="text-muted-foreground">{s.label}</span>
-                <span className="font-bold text-foreground">{s.count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Issue detail bottom sheet ────────────────────── */}
       <AnimatePresence>

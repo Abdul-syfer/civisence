@@ -17,10 +17,13 @@ import AuthorityReports from "./pages/authority/AuthorityReports";
 import AuthorityAccount from "./pages/authority/AuthorityAccount";
 import {
   AdminDashboard, AdminAuthorities, AdminDepartments,
-  AdminEscalations, AdminSettings
+  AdminEscalations, AdminSettings, AdminIssues
 } from "./pages/admin/AdminPages";
 import AdminWardMap from "./pages/admin/AdminWardMap";
 import NotFound from "./pages/NotFound";
+import LandingPage from "./pages/LandingPage";
+import PasswordResetPage from "./pages/PasswordResetPage";
+import AuthActionPage from "./pages/AuthActionPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 
@@ -60,6 +63,8 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={isAuthenticated ? <Navigate to={`/${user?.role === "admin" ? "admin" : user?.role === "authority" ? "authority" : "citizen"}`} /> : <LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/reset-password" element={<PasswordResetPage />} />
+      <Route path="/auth/action" element={<AuthActionPage />} />
 
       {/* Citizen */}
       <Route path="/citizen" element={<ProtectedRoute role="citizen"><CitizenHome /></ProtectedRoute>} />
@@ -81,9 +86,10 @@ const AppRoutes = () => {
       <Route path="/admin/departments" element={<ProtectedRoute role="admin"><AdminDepartments /></ProtectedRoute>} />
       <Route path="/admin/escalations" element={<ProtectedRoute role="admin"><AdminEscalations /></ProtectedRoute>} />
 
+      <Route path="/admin/issues" element={<ProtectedRoute role="admin"><AdminIssues /></ProtectedRoute>} />
       <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
-      <Route path="/" element={<Navigate to="/login" />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     </ErrorBoundary>
@@ -96,6 +102,12 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        {/* Global blob background — fixed so it persists across all pages */}
+        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" style={{ background: "oklch(0.99 0.005 240)" }}>
+          <div className="absolute -top-20 -left-20 w-[500px] h-[500px] rounded-full blur-3xl animate-blob" style={{ background: "oklch(0.62 0.18 245 / 0.15)" }} />
+          <div className="absolute -bottom-20 -right-20 w-[420px] h-[420px] rounded-full blur-3xl animate-blob" style={{ background: "oklch(0.72 0.19 145 / 0.15)", animationDelay: "3s" }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] rounded-full blur-3xl animate-blob" style={{ background: "oklch(0.62 0.18 245 / 0.07)", animationDelay: "6s" }} />
+        </div>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppRoutes />
         </BrowserRouter>

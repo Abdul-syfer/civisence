@@ -1,4 +1,4 @@
-import { MapPin, Clock, Users, MessageCircle, CheckCircle2, X, ArrowLeftRight } from "lucide-react";
+import { MapPin, Clock, Users, MessageCircle, CheckCircle2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { CivicIssue } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -83,6 +83,8 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [beforeAfterOpen, setBeforeAfterOpen] = useState(false);
   const [beforeAfterStart, setBeforeAfterStart] = useState<0 | 1>(0);
+  // For resolved cards: true = show AFTER (default), false = show BEFORE
+  const [showAfter, setShowAfter] = useState(true);
 
   const handleConfirm = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -104,31 +106,63 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
         {/* Issue Image */}
         <div className="relative overflow-hidden">
           {isResolved && issue.resolvedImageUrl ? (
-            /* Before / After side-by-side — tap either half to open swipe modal */
-            <div className="flex h-40">
-              <button
-                type="button"
-                aria-label="View before photo"
-                onClick={(e) => { e.stopPropagation(); setBeforeAfterStart(0); setBeforeAfterOpen(true); }}
-                className="relative flex-1 overflow-hidden"
-              >
-                <img src={imageUrl} alt="Before" className="w-full h-full object-cover" loading="lazy" />
-                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">BEFORE</span>
-              </button>
-              <div className="relative w-px bg-border flex-shrink-0 flex items-center justify-center overflow-visible">
-                <div className="absolute z-10 bg-background border border-border rounded-full p-1 shadow-sm">
-                  <ArrowLeftRight className="w-2.5 h-2.5 text-muted-foreground" />
-                </div>
+            /* Single photo with left/right arrows — AFTER by default */
+            <div className="relative h-40 overflow-hidden">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.img
+                  key={showAfter ? "after" : "before"}
+                  src={showAfter ? issue.resolvedImageUrl : imageUrl}
+                  alt={showAfter ? "After" : "Before"}
+                  initial={{ opacity: 0, x: showAfter ? -30 : 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: showAfter ? 30 : -30 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full h-full object-cover absolute inset-0"
+                  loading="lazy"
+                />
+              </AnimatePresence>
+
+              {/* Label badge */}
+              <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none">
+                <span className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm",
+                  showAfter ? "bg-emerald-500/80 text-white" : "bg-black/60 text-white"
+                )}>
+                  {showAfter ? "AFTER" : "BEFORE"}
+                </span>
               </div>
+
+              {/* Left arrow — go to BEFORE (only when showing AFTER) */}
+              {showAfter && (
+                <button
+                  type="button"
+                  aria-label="View before photo"
+                  onClick={(e) => { e.stopPropagation(); setShowAfter(false); }}
+                  className="absolute left-1.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/70 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-white" />
+                </button>
+              )}
+
+              {/* Right arrow — go to AFTER (only when showing BEFORE) */}
+              {!showAfter && (
+                <button
+                  type="button"
+                  aria-label="View after photo"
+                  onClick={(e) => { e.stopPropagation(); setShowAfter(true); }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/70 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-white" />
+                </button>
+              )}
+
+              {/* Tap photo to open full swipe modal */}
               <button
                 type="button"
-                aria-label="View after photo"
-                onClick={(e) => { e.stopPropagation(); setBeforeAfterStart(1); setBeforeAfterOpen(true); }}
-                className="relative flex-1 overflow-hidden"
-              >
-                <img src={issue.resolvedImageUrl} alt="After" className="w-full h-full object-cover" loading="lazy" />
-                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold bg-emerald-500/80 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">AFTER</span>
-              </button>
+                aria-label="View full comparison"
+                onClick={(e) => { e.stopPropagation(); setBeforeAfterStart(showAfter ? 1 : 0); setBeforeAfterOpen(true); }}
+                className="absolute inset-0 z-[5]"
+              />
             </div>
           ) : (
             <div className="relative h-40">

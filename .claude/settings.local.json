@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Read(//c/c/Users/Admin/Desktop/cvs/**)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(cat .gitmodules)",
+      "Bash(git submodule *)"
+    ]
+  }
+}

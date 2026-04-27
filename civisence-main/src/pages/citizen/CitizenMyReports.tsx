@@ -5,7 +5,7 @@ import { subscribeToIssuesByUser } from "@/lib/firestore";
 import { useAuth } from "@/lib/authContext";
 import StatusTimeline from "@/components/StatusTimeline";
 import SeverityBadge from "@/components/SeverityBadge";
-import { MapPin, ChevronDown, ChevronUp, Loader2, X, MessageCircle, Clock, CheckCircle2, AlertCircle, Ban } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, Loader2, X, MessageCircle, Clock, CheckCircle2, AlertCircle, Ban, ChevronLeft, ChevronRight, Users, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import CommentsSheet from "@/components/CommentsSheet";
@@ -53,6 +53,72 @@ const STATUS_CONFIG = {
 
 const PIPELINE = ["open", "in_progress", "resolved"] as const;
 
+const ReportPhotoCarousel = ({
+  issue,
+  hasResolved,
+  onOpenLightbox,
+}: {
+  issue: CivicIssue;
+  hasResolved: boolean;
+  onOpenLightbox: (src: string, alt: string) => void;
+}) => {
+  const [slide, setSlide] = useState<0 | 1>(hasResolved ? 1 : 0); // default AFTER for resolved
+  if (!hasResolved) {
+    return issue.imageUrl ? (
+      <div className="relative h-44 overflow-hidden">
+        <img src={issue.imageUrl} alt={issue.title} className="w-full h-full object-cover cursor-pointer"
+          onClick={() => onOpenLightbox(issue.imageUrl, issue.title)} />
+      </div>
+    ) : null;
+  }
+  const src = slide === 1 ? issue.resolvedImageUrl! : issue.imageUrl;
+  const label = slide === 1 ? "AFTER" : "BEFORE";
+  return (
+    <div className="relative h-52 overflow-hidden bg-muted">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.img
+          key={slide}
+          src={src}
+          alt={label}
+          initial={{ opacity: 0, x: slide === 1 ? 40 : -40 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: slide === 1 ? -40 : 40 }}
+          transition={{ duration: 0.22 }}
+          className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+          onClick={() => onOpenLightbox(src, `${issue.title} — ${label}`)}
+        />
+      </AnimatePresence>
+      {/* Label */}
+      <span className={cn(
+        "absolute top-2.5 left-2.5 z-10 text-[10px] font-bold px-2 py-0.5 rounded-full pointer-events-none",
+        slide === 1 ? "bg-emerald-500/90 text-white" : "bg-black/60 text-white"
+      )}>{label}</span>
+      {/* Arrows */}
+      {slide === 1 && (
+        <button type="button" aria-label="View before"
+          onClick={e => { e.stopPropagation(); setSlide(0); }}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20">
+          <ChevronLeft className="w-4 h-4 text-white" />
+        </button>
+      )}
+      {slide === 0 && (
+        <button type="button" aria-label="View after"
+          onClick={e => { e.stopPropagation(); setSlide(1); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20">
+          <ChevronRight className="w-4 h-4 text-white" />
+        </button>
+      )}
+      {/* Dot indicators */}
+      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 pointer-events-none">
+        {[0, 1].map(i => (
+          <span key={i} className={cn("rounded-full transition-all duration-200",
+            i === slide ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50")} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const ImageLightbox = ({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) => (
   <motion.div
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -84,15 +150,19 @@ const CitizenMyReports = () => {
     return () => unsub();
   }, [user?.uid]);
 
+  // Separate original reports from votes on existing issues
+  const ownReports = issues.filter(i => !i.isDuplicate);
+  const confirmedVotes = issues.filter(i => i.isDuplicate);
+
   const counts = {
-    all: issues.length,
-    open: issues.filter(i => i.status === "open").length,
-    in_progress: issues.filter(i => i.status === "in_progress").length,
-    resolved: issues.filter(i => i.status === "resolved").length,
-    rejected: issues.filter(i => i.status === "rejected").length,
+    all: ownReports.length,
+    open: ownReports.filter(i => i.status === "open").length,
+    in_progress: ownReports.filter(i => i.status === "in_progress").length,
+    resolved: ownReports.filter(i => i.status === "resolved").length,
+    rejected: ownReports.filter(i => i.status === "rejected").length,
   };
 
-  const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
+  const filtered = filter === "all" ? ownReports : ownReports.filter(i => i.status === filter);
 
   const TABS: { key: StatusFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -108,8 +178,10 @@ const CitizenMyReports = () => {
       <div className="gradient-primary px-5 pt-safe-header pb-6 rounded-b-3xl">
         <div className="max-w-2xl mx-auto">
           <h1 className="font-display text-xl font-bold text-primary-foreground">My Reports</h1>
-          <p className="text-sm text-primary-foreground/70 mt-0.5">{loading ? "…" : `${issues.length} issues reported`}</p>
-          {!loading && issues.length > 0 && (
+          <p className="text-sm text-primary-foreground/70 mt-0.5">
+            {loading ? "…" : `${ownReports.length} reported${confirmedVotes.length > 0 ? ` · ${confirmedVotes.length} confirmed` : ""}`}
+          </p>
+          {!loading && ownReports.length > 0 && (
             <div className="flex gap-2 mt-3 flex-wrap">
               {counts.open > 0 && (
                 <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-destructive/20 text-white">{counts.open} Open</span>
@@ -167,27 +239,12 @@ const CitizenMyReports = () => {
                   transition={{ delay: i * 0.04 }}
                   className={cn("bg-card rounded-xl border border-border border-l-4 shadow-sm overflow-hidden", cfg.border)}>
 
-                  {/* Photo */}
-                  {(issue.imageUrl || issue.resolvedImageUrl) && (
-                    issue.status === "resolved" && issue.resolvedImageUrl ? (
-                      <div className="flex h-36">
-                        <div className="relative flex-1 overflow-hidden">
-                          <img src={issue.imageUrl} alt="Before" className="w-full h-full object-cover cursor-pointer"
-                            onClick={() => { setLightboxSrc(issue.imageUrl); setLightboxAlt(`${issue.title} — Before`); }} />
-                          <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded-full">BEFORE</span>
-                        </div>
-                        <div className="w-px bg-border flex-shrink-0" />
-                        <div className="relative flex-1 overflow-hidden">
-                          <img src={issue.resolvedImageUrl} alt="After" className="w-full h-full object-cover cursor-pointer"
-                            onClick={() => { setLightboxSrc(issue.resolvedImageUrl!); setLightboxAlt(`${issue.title} — After`); }} />
-                          <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold bg-emerald-600/80 text-white px-1.5 py-0.5 rounded-full">AFTER</span>
-                        </div>
-                      </div>
-                    ) : issue.imageUrl ? (
-                      <img src={issue.imageUrl} alt={issue.title} className="w-full h-32 object-cover cursor-pointer"
-                        onClick={() => { setLightboxSrc(issue.imageUrl); setLightboxAlt(issue.title); }} />
-                    ) : null
-                  )}
+                  {/* Photo — carousel for resolved (BEFORE/AFTER), single for others */}
+                  {(issue.imageUrl || issue.resolvedImageUrl) && (() => {
+                    const hasResolved = issue.status === "resolved" && !!issue.resolvedImageUrl;
+                    // Per-card slide state: we use a local component to keep slide state isolated
+                    return <ReportPhotoCarousel issue={issue} onOpenLightbox={(src, alt) => { setLightboxSrc(src); setLightboxAlt(alt); }} hasResolved={hasResolved} />;
+                  })()}
 
                   <div className="p-4">
                     {/* Status header row */}
@@ -270,6 +327,66 @@ const CitizenMyReports = () => {
           </AnimatePresence>
         )}
       </div>
+
+      {/* Confirmed issues section — votes the citizen added to existing reports */}
+      {!loading && confirmedVotes.length > 0 && (
+        <div className="px-5 mt-6 mb-2 max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Issues You've Confirmed</h2>
+            <span className="text-[11px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full ml-auto">
+              {confirmedVotes.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {confirmedVotes.map(vote => {
+              const cfg = STATUS_CONFIG[vote.status];
+              const StatusIcon = cfg.icon;
+              return (
+                <motion.div
+                  key={vote.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-card rounded-xl border border-border border-l-4 border-l-primary/40 shadow-sm overflow-hidden"
+                >
+                  <div className="p-3.5 flex items-start gap-3">
+                    {/* Vote icon */}
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Users className="w-4 h-4 text-primary" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {/* "Voice added" label */}
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          Voice Added
+                        </span>
+                        <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1", cfg.bg, cfg.color)}>
+                          <StatusIcon className="w-2.5 h-2.5" />
+                          {cfg.label}
+                        </span>
+                      </div>
+
+                      <p className="text-sm font-semibold text-foreground leading-snug">{vote.category}</p>
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{vote.location}</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        Your voice was added to an existing complaint in your area.
+                      </p>
+                    </div>
+
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">
+                      {new Date(vote.reportedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {commentsIssue && (
         <CommentsSheet issueId={commentsIssue.id} issueTitle={commentsIssue.title}

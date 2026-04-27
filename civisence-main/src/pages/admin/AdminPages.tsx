@@ -4,7 +4,8 @@ import { useNavigate, Link, useLocation } from "react-router-dom";
 import { departments, issueCategories, CivicIssue, Authority } from "@/lib/types";
 import {
   subscribeToAllIssues, getAuthorities, createAuthority, updateAuthority, deleteAuthority,
-  deleteIssue, updateIssueFields, createNotification, getUsersByWardAndRole, createUserProfile
+  deleteIssue, updateIssueFields, createNotification, getUsersByWardAndRole, createUserProfile,
+  saveSlaSettings
 } from "@/lib/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth as auth_instance } from "@/lib/firebase";
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import SeverityBadge from "@/components/SeverityBadge";
 import { motion, AnimatePresence } from "framer-motion";
 import WardPickerMap from "@/components/WardPickerMap";
@@ -917,9 +919,14 @@ export const AdminSettings = () => {
     toast.success("Categories saved.");
   };
 
-  const saveSla = () => {
-    localStorage.setItem("civicsense_sla", JSON.stringify(sla));
-    toast.success("SLA deadlines saved.");
+  const saveSla = async () => {
+    try {
+      await saveSlaSettings(sla);
+      localStorage.setItem("civicsense_sla", JSON.stringify(sla));
+      toast.success("SLA deadlines saved.");
+    } catch {
+      toast.error("Failed to save SLA settings. Please try again.");
+    }
   };
 
   const addCategory = () => {
@@ -984,14 +991,14 @@ export const AdminSettings = () => {
         {/* SLA Deadlines */}
         <div className="bg-card rounded-xl border border-border p-5">
           <h4 className="font-display font-semibold text-foreground mb-1">SLA Deadlines</h4>
-          <p className="text-xs text-muted-foreground mb-4">Set resolution time limits (days) per category</p>
+          <p className="text-xs text-muted-foreground mb-4">Set days before issue becomes public to citizens. <span className="font-semibold text-foreground">0 = visible immediately at time of report.</span></p>
           <div className="space-y-2">
             {categories.map(cat => (
               <div key={cat} className="flex items-center justify-between">
                 <span className="text-sm text-foreground">{cat}</span>
                 <div className="flex items-center gap-2">
                   <Input
-                    type="number" min={1} max={30}
+                    type="number" min={0} max={30}
                     value={sla[cat] ?? 3}
                     onChange={e => setSla(prev => ({ ...prev, [cat]: Number(e.target.value) }))}
                     className="w-16 text-xs h-7"
@@ -1007,47 +1014,33 @@ export const AdminSettings = () => {
         </div>
 
         {/* Notification Settings */}
-        <div className="bg-card rounded-xl border border-border p-5 flex items-center justify-between">
-          <div>
-            <h4 className="font-display font-semibold text-foreground">Notification Settings</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">Enable push notifications and alerts</p>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-display font-semibold text-foreground">Notification Settings</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">Enable push notifications and alerts</p>
+            </div>
+            <Switch
+              checked={notifEnabled}
+              onCheckedChange={checked => { setNotifEnabled(checked); localStorage.setItem("civicsense_notif_enabled", JSON.stringify(checked)); toast.success(`Notifications ${checked ? "enabled" : "disabled"}.`); }}
+              aria-label="Toggle notifications"
+            />
           </div>
-          <button
-            type="button"
-            aria-label={notifEnabled ? "Disable notifications" : "Enable notifications"}
-            onClick={toggleNotif}
-            className={cn(
-              "w-11 h-6 rounded-full transition-colors relative",
-              notifEnabled ? "bg-primary" : "bg-muted"
-            )}
-          >
-            <span className={cn(
-              "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform",
-              notifEnabled ? "translate-x-5" : "translate-x-0.5"
-            )} />
-          </button>
         </div>
 
         {/* Map Settings */}
-        <div className="bg-card rounded-xl border border-border p-5 flex items-center justify-between">
-          <div>
-            <h4 className="font-display font-semibold text-foreground">Map Clustering</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">Group nearby issue markers on the map</p>
+        <div className="bg-card rounded-xl border border-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-display font-semibold text-foreground">Map Clustering</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">Group nearby issue markers on the map</p>
+            </div>
+            <Switch
+              checked={mapClustering}
+              onCheckedChange={checked => { setMapClustering(checked); localStorage.setItem("civicsense_map_clustering", JSON.stringify(checked)); toast.success(`Map clustering ${checked ? "enabled" : "disabled"}.`); }}
+              aria-label="Toggle map clustering"
+            />
           </div>
-          <button
-            type="button"
-            aria-label={mapClustering ? "Disable map clustering" : "Enable map clustering"}
-            onClick={toggleClustering}
-            className={cn(
-              "w-11 h-6 rounded-full transition-colors relative",
-              mapClustering ? "bg-primary" : "bg-muted"
-            )}
-          >
-            <span className={cn(
-              "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform",
-              mapClustering ? "translate-x-5" : "translate-x-0.5"
-            )} />
-          </button>
         </div>
 
       </div>

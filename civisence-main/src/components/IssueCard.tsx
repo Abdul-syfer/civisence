@@ -1,6 +1,5 @@
-import { MapPin, Clock, Users, MessageCircle, CheckCircle2, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, Clock, Users, MessageCircle, CheckCircle2, X, ChevronLeft, ChevronRight, Flame, Zap, Leaf } from "lucide-react";
 import { CivicIssue } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getIssueImage } from "@/lib/issueImages";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,7 +8,6 @@ import SparkleButton from "@/components/SparkleButton";
 import CommentsSheet from "@/components/CommentsSheet";
 import BeforeAfterModal from "@/components/BeforeAfterModal";
 
-/** Returns a compact human-readable relative time string */
 const formatRelativeDate = (iso: string): string => {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -22,17 +20,41 @@ const formatRelativeDate = (iso: string): string => {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
 
-const severityConfig = {
-  severe: { label: "Severe", className: "bg-destructive text-destructive-foreground" },
-  medium: { label: "Medium", className: "severity-medium" },
-  minor: { label: "Minor", className: "severity-minor" },
+const categoryAvatarColors: Record<string, string> = {
+  "Pothole": "bg-orange-500",
+  "Accident": "bg-red-600",
+  "Garbage Overflow": "bg-lime-600",
+  "Drainage Overflow": "bg-blue-600",
+  "Water Leakage": "bg-cyan-500",
+  "Electric Cable Issue": "bg-yellow-500",
+  "Streetlight Damage": "bg-purple-500",
+  "Ambulance Blockage": "bg-rose-600",
 };
 
-const statusConfig = {
-  open: { label: "Open", className: "bg-destructive/10 text-destructive border-destructive/20" },
-  in_progress: { label: "In Progress", className: "bg-warning/10 text-warning border-warning/20" },
-  resolved: { label: "Resolved", className: "bg-success/10 text-success border-success/20" },
-  rejected: { label: "Rejected", className: "bg-muted text-muted-foreground" },
+const severityIcon = {
+  severe: <Flame className="w-3 h-3" />,
+  medium: <Zap className="w-3 h-3" />,
+  minor: <Leaf className="w-3 h-3" />,
+};
+
+const severityStyle = {
+  severe: "bg-red-500/15 text-red-600 border-red-200",
+  medium: "bg-amber-500/15 text-amber-600 border-amber-200",
+  minor: "bg-emerald-500/15 text-emerald-600 border-emerald-200",
+};
+
+const statusStyle = {
+  open: "bg-red-500/10 text-red-600",
+  in_progress: "bg-amber-500/10 text-amber-600",
+  resolved: "bg-emerald-500/10 text-emerald-600",
+  rejected: "bg-gray-200 text-gray-500",
+};
+
+const statusLabel = {
+  open: "Open",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+  rejected: "Rejected",
 };
 
 interface Props {
@@ -40,10 +62,10 @@ interface Props {
   onConfirm?: () => void;
   onClick?: () => void;
   showActions?: boolean;
+  showSeverity?: boolean;
   confirmLabel?: string;
 }
 
-/** Full-screen image lightbox */
 const ImageLightbox = ({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) => (
   <AnimatePresence>
     <motion.div
@@ -56,6 +78,7 @@ const ImageLightbox = ({ src, alt, onClose }: { src: string; alt: string; onClos
     >
       <button
         type="button"
+        aria-label="Close"
         onClick={onClose}
         className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 z-10"
       >
@@ -64,18 +87,16 @@ const ImageLightbox = ({ src, alt, onClose }: { src: string; alt: string; onClos
       <motion.img
         src={src}
         alt={alt}
-        initial={{ scale: 0.9 }}
+        initial={{ scale: 0.92 }}
         animate={{ scale: 1 }}
-        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       />
     </motion.div>
   </AnimatePresence>
 );
 
-const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel }: Props) => {
-  const sev = severityConfig[issue.severity];
-  const stat = statusConfig[issue.status];
+const IssueCard = ({ issue, onConfirm, onClick, showActions = true, showSeverity = true, confirmLabel }: Props) => {
   const isResolved = issue.status === "resolved";
   const imageUrl = issue.imageUrl || getIssueImage(issue.category);
   const [confirmAnimating, setConfirmAnimating] = useState(false);
@@ -83,8 +104,10 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [beforeAfterOpen, setBeforeAfterOpen] = useState(false);
   const [beforeAfterStart, setBeforeAfterStart] = useState<0 | 1>(0);
-  // For resolved cards: true = show AFTER (default), false = show BEFORE
-  const [showAfter, setShowAfter] = useState(true);
+  // 0 = BEFORE, 1 = AFTER (default for resolved)
+  const [slide, setSlide] = useState<0 | 1>(isResolved && issue.resolvedImageUrl ? 1 : 0);
+
+  const totalSlides = isResolved && issue.resolvedImageUrl ? 2 : 1;
 
   const handleConfirm = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,172 +117,188 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
     setTimeout(() => setConfirmAnimating(false), 1000);
   };
 
+  const avatarColor = categoryAvatarColors[issue.category] ?? "bg-primary";
+  const initials = issue.category.slice(0, 2).toUpperCase();
+
   return (
     <>
       <motion.div
         onClick={onClick}
-        className="bg-card rounded-xl border border-border overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer"
-        whileTap={{ scale: 0.98 }}
-        whileHover={{ y: -4 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm cursor-pointer"
+        whileTap={{ scale: 0.985 }}
+        transition={{ type: "spring", stiffness: 400, damping: 28 }}
       >
-        {/* Issue Image */}
-        <div className="relative overflow-hidden">
-          {isResolved && issue.resolvedImageUrl ? (
-            /* Single photo with left/right arrows — AFTER by default */
-            <div className="relative h-40 overflow-hidden">
+        {/* ── Instagram-style header ── */}
+        <div className="flex items-center gap-3 px-3.5 py-2.5">
+          {/* Avatar */}
+          <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ring-2 ring-offset-1 ring-border", avatarColor)}>
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-foreground leading-none truncate">{issue.category}</p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-[11px] text-muted-foreground truncate">{issue.location}</span>
+            </div>
+          </div>
+          {/* Status pill */}
+          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0", statusStyle[issue.status])}>
+            {statusLabel[issue.status]}
+          </span>
+        </div>
+
+        {/* ── Full-bleed image ── */}
+        <div className="relative w-full aspect-[4/3] bg-muted overflow-hidden">
+          {totalSlides === 2 ? (
+            <>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.img
-                  key={showAfter ? "after" : "before"}
-                  src={showAfter ? issue.resolvedImageUrl : imageUrl}
-                  alt={showAfter ? "After" : "Before"}
-                  initial={{ opacity: 0, x: showAfter ? -30 : 30 }}
+                  key={slide}
+                  src={slide === 1 ? issue.resolvedImageUrl! : imageUrl}
+                  alt={slide === 1 ? "After fix" : "Before fix"}
+                  initial={{ opacity: 0, x: slide === 1 ? 40 : -40 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: showAfter ? 30 : -30 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full h-full object-cover absolute inset-0"
+                  exit={{ opacity: 0, x: slide === 1 ? -40 : 40 }}
+                  transition={{ duration: 0.22 }}
+                  className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
                 />
               </AnimatePresence>
 
-              {/* Label badge */}
-              <div className="absolute bottom-1.5 left-1.5 z-10 pointer-events-none">
+              {/* BEFORE/AFTER label */}
+              <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
                 <span className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm",
-                  showAfter ? "bg-emerald-500/80 text-white" : "bg-black/60 text-white"
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-md shadow",
+                  slide === 1 ? "bg-emerald-500/90 text-white" : "bg-black/60 text-white"
                 )}>
-                  {showAfter ? "AFTER" : "BEFORE"}
+                  {slide === 1 ? "AFTER" : "BEFORE"}
                 </span>
               </div>
 
-              {/* Left arrow — go to BEFORE (only when showing AFTER) */}
-              {showAfter && (
+              {/* Arrow navigation */}
+              {slide === 1 && (
                 <button
                   type="button"
-                  aria-label="View before photo"
-                  onClick={(e) => { e.stopPropagation(); setShowAfter(false); }}
-                  className="absolute left-1.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/70 transition-colors"
+                  aria-label="View before"
+                  onClick={(e) => { e.stopPropagation(); setSlide(0); }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/60 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4 text-white" />
                 </button>
               )}
-
-              {/* Right arrow — go to AFTER (only when showing BEFORE) */}
-              {!showAfter && (
+              {slide === 0 && (
                 <button
                   type="button"
-                  aria-label="View after photo"
-                  onClick={(e) => { e.stopPropagation(); setShowAfter(true); }}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/70 transition-colors"
+                  aria-label="View after"
+                  onClick={(e) => { e.stopPropagation(); setSlide(1); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 hover:bg-black/60 transition-colors"
                 >
                   <ChevronRight className="w-4 h-4 text-white" />
                 </button>
               )}
 
-              {/* Tap photo to open full swipe modal */}
+              {/* Instagram-style dot indicators */}
+              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 pointer-events-none">
+                {[0, 1].map((i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "rounded-full transition-all duration-200",
+                      i === slide ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"
+                    )}
+                  />
+                ))}
+              </div>
+
+              {/* Tap to open modal */}
               <button
                 type="button"
                 aria-label="View full comparison"
-                onClick={(e) => { e.stopPropagation(); setBeforeAfterStart(showAfter ? 1 : 0); setBeforeAfterOpen(true); }}
+                onClick={(e) => { e.stopPropagation(); setBeforeAfterStart(slide as 0 | 1); setBeforeAfterOpen(true); }}
                 className="absolute inset-0 z-[5]"
               />
-            </div>
+            </>
           ) : (
-            <div className="relative h-40">
+            <>
               <img
                 src={imageUrl}
                 alt={issue.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
-              {/* Tap to open lightbox */}
               <button
                 type="button"
                 aria-label="View full image"
                 onClick={(e) => { e.stopPropagation(); setLightboxSrc(imageUrl); }}
                 className="absolute inset-0"
               />
-            </div>
+            </>
           )}
-
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent pointer-events-none" />
-          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 pointer-events-none">
-            <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm", sev.className)}>
-              {sev.label}
-            </span>
-            <Badge variant="outline" className={cn("text-[10px] backdrop-blur-sm bg-card/60", stat.className)}>
-              {stat.label}
-            </Badge>
-          </div>
-          <div className="absolute bottom-2.5 left-3 right-3 pointer-events-none">
-            <h3 className="font-display font-semibold text-sm text-foreground leading-tight drop-shadow-sm">{issue.title}</h3>
-          </div>
         </div>
 
-        <div className="p-3 pt-2">
-          <div className="space-y-1.5 text-xs text-muted-foreground mb-3">
-            <div className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{issue.location}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{formatRelativeDate(issue.reportedAt)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" />
-                <span>{issue.reportCount} reports</span>
-              </div>
-            </div>
-            <div className="text-xs text-primary/80 font-medium">{issue.department}</div>
+        {/* ── Action bar ── */}
+        {showActions && (
+          <div className="flex items-center gap-3 px-3.5 pt-3 pb-1">
+            <SparkleButton
+              className={cn(
+                "flex items-center gap-1.5 text-[13px] font-semibold px-0 bg-transparent border-none shadow-none hover:bg-transparent",
+                isResolved ? "text-emerald-600" : "text-foreground hover:text-primary",
+                confirmAnimating && "text-primary"
+              )}
+              onClick={handleConfirm}
+            >
+              {isResolved
+                ? <><CheckCircle2 className="w-5 h-5" /><span>{confirmLabel || "Confirm Resolved"}</span></>
+                : <><Users className="w-5 h-5" /><span>{confirmLabel || "Confirm"}</span></>
+              }
+            </SparkleButton>
 
-            {isResolved && (
-              <div className="flex items-center gap-1.5 text-success font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Resolved</span>
-              </div>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground hover:text-primary ml-1 bg-transparent border-none"
+              onClick={(e) => { e.stopPropagation(); setCommentsOpen(true); }}
+            >
+              <MessageCircle className="w-5 h-5" />
+              {(issue.commentCount ?? 0) > 0 && <span>{issue.commentCount}</span>}
+            </motion.button>
+
+            <div className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Users className="w-3.5 h-3.5" />
+              <span>{issue.reportCount} reports</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Caption area ── */}
+        <div className="px-3.5 pb-3 pt-1 space-y-1.5">
+          <p className="text-[13px] leading-snug">
+            <span className="font-semibold text-foreground">{issue.category} </span>
+            <span className="text-muted-foreground">{issue.title}</span>
+          </p>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Severity badge */}
+            {showSeverity && (
+              <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", severityStyle[issue.severity])}>
+                {severityIcon[issue.severity]}
+                {issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1)}
+              </span>
             )}
+
+            {/* Department */}
+            <span className="text-[10px] text-primary/80 font-medium bg-primary/8 px-2 py-0.5 rounded-full truncate max-w-[160px]">
+              {issue.department}
+            </span>
           </div>
 
-          {showActions && (
-            <div className="flex items-center gap-2 pt-2 border-t border-border">
-              <div className="flex-1">
-                <SparkleButton
-                  className={cn(
-                    "text-xs h-8 w-full border bg-background hover:bg-accent hover:text-accent-foreground rounded-md px-3",
-                    isResolved && "border-success/30 text-success hover:bg-success/10",
-                    !isResolved && "border-input",
-                    confirmAnimating && "ring-2 ring-primary/30"
-                  )}
-                  onClick={handleConfirm}
-                >
-                  {isResolved ? (
-                    <><CheckCircle2 className="w-3 h-3 mr-1" /> {confirmLabel || "Confirm Resolved"}</>
-                  ) : (
-                    <><Users className="w-3 h-3 mr-1" /> {confirmLabel || "Confirm"}</>
-                  )}
-                </SparkleButton>
-              </div>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                className="text-xs h-8 hover:bg-accent hover:text-accent-foreground rounded-md px-3 inline-flex items-center gap-1 text-muted-foreground border border-input"
-                onClick={(e) => { e.stopPropagation(); setCommentsOpen(true); }}
-              >
-                <MessageCircle className="w-3 h-3" />
-                Comment
-                {(issue.commentCount ?? 0) > 0 && (
-                  <span className="ml-0.5 bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    {issue.commentCount}
-                  </span>
-                )}
-              </motion.button>
-            </div>
-          )}
+          {/* Time */}
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+            <Clock className="w-3 h-3" />
+            <span>{formatRelativeDate(issue.reportedAt)}</span>
+          </div>
         </div>
       </motion.div>
 
-      {/* Comments sheet */}
       <CommentsSheet
         issueId={issue.id}
         issueTitle={issue.title}
@@ -267,7 +306,6 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
         onClose={() => setCommentsOpen(false)}
       />
 
-      {/* Single-image lightbox (unsolved issues) */}
       {lightboxSrc && (
         <ImageLightbox
           src={lightboxSrc}
@@ -276,7 +314,6 @@ const IssueCard = ({ issue, onConfirm, onClick, showActions = true, confirmLabel
         />
       )}
 
-      {/* Before / After swipe modal (resolved issues) */}
       <AnimatePresence>
         {beforeAfterOpen && issue.resolvedImageUrl && (
           <BeforeAfterModal

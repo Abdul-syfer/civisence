@@ -106,7 +106,7 @@ const AuthorityHome = () => {
           ) : (
             issues.map((issue, i) => (
               <motion.div key={issue.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                <IssueCard issue={issue} showActions={false} />
+                <IssueCard issue={issue} showActions={false} showSeverity={false} />
               </motion.div>
             ))
           )}

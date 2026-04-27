@@ -1,5 +1,23 @@
 import { useState, useEffect } from "react";
 import { CivicIssue, issueCategories } from "@/lib/types";
+
+const getActiveCategories = (): string[] => {
+  try {
+    const stored = localStorage.getItem("civicsense_categories");
+    return stored ? JSON.parse(stored) : issueCategories;
+  } catch {
+    return issueCategories;
+  }
+};
+
+const getSlaMap = (): Record<string, number> => {
+  try {
+    const stored = localStorage.getItem("civicsense_sla");
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+};
 import { getAllIssues, confirmIssue } from "@/lib/firestore";
 import { useAuth } from "@/lib/authContext";
 import IssueCard from "@/components/IssueCard";
@@ -29,6 +47,7 @@ const CitizenHome = () => {
   const [locationScope, setLocationScope] = useState<LocationScope>("state");
   const [issues, setIssues] = useState<CivicIssue[]>([]);
   const [loading, setLoading] = useState(true);
+  const activeCategories = getActiveCategories();
 
   useEffect(() => {
     const fetchIssues = async () => {
@@ -45,22 +64,31 @@ const CitizenHome = () => {
     fetchIssues();
   }, []);
 
+  // SLA gate: hide issues from other citizens until visibleAfter time passes
+  // Reporter always sees their own issues immediately
+  const now = new Date();
+  const slaVisible = (issue: CivicIssue) =>
+    !issue.visibleAfter ||
+    new Date(issue.visibleAfter) <= now ||
+    issue.userId === user?.uid;
+
   // Issues with no city field are treated as belonging to the local city
   // (all pre-existing issues were created before city was stored)
   const inUserCity = (i: CivicIssue) => !i.city || i.city === user?.city;
 
-  // Apply location scope first
+  // Apply SLA gate then location scope
+  const slaFiltered = issues.filter(slaVisible);
   const locationFiltered = (() => {
-    if (locationScope === "ward") return issues.filter(i => i.ward === user?.ward);
-    if (locationScope === "city") return issues.filter(inUserCity);
-    return issues; // district / state = all issues
+    if (locationScope === "ward") return slaFiltered.filter(i => i.ward === user?.ward);
+    if (locationScope === "city") return slaFiltered.filter(inUserCity);
+    return slaFiltered; // district / state = all issues
   })();
 
   // Count per scope tab (total issues in that scope)
   const countForScope = (scope: LocationScope) => {
-    if (scope === "ward") return issues.filter(i => i.ward === user?.ward).length;
-    if (scope === "city") return issues.filter(inUserCity).length;
-    return issues.length;
+    if (scope === "ward") return slaFiltered.filter(i => i.ward === user?.ward).length;
+    if (scope === "city") return slaFiltered.filter(inUserCity).length;
+    return slaFiltered.length;
   };
 
   // Stats for current scope (used in the reported/solved counter)
@@ -224,7 +252,7 @@ const CitizenHome = () => {
           {/* Row 4: Category filter chips */}
           {!loading && (
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none mb-3 -mx-5 px-5">
-              {["all", ...issueCategories].map(cat => {
+              {["all", ...activeCategories].map(cat => {
                 const count = countFor(cat);
                 const active = categoryFilter === cat;
                 return (

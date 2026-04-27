@@ -5,10 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Camera, MapPin, Check, Loader2, ArrowLeft, ArrowRight, Upload } from "lucide-react";
+import { Camera, MapPin, Check, Loader2, ArrowLeft, ArrowRight, Upload, AlertTriangle, Info, Users, X } from "lucide-react";
 import { issueCategories, departments, CivicIssue, categorySeverityMap } from "@/lib/types";
+
+const getActiveCategories = (): string[] => {
+  try {
+    const stored = localStorage.getItem("civicsense_categories");
+    return stored ? JSON.parse(stored) : issueCategories;
+  } catch { return issueCategories; }
+};
 import { useAuth } from "@/lib/authContext";
-import { createIssue, createNotification, getUsersByWardAndRole, findNearbyDuplicate, voteOnIssue, getAuthorityByWardAndDept, getAuthoritiesByDepartment } from "@/lib/firestore";
+import { createIssue, createNotification, getUsersByWardAndRole, findNearbyDuplicate, voteOnIssue, getAuthorityByWardAndDept, getAuthoritiesByDepartment, getSlaSettings } from "@/lib/firestore";
 import { Authority } from "@/lib/types";
 import { getWardFromCoords } from "@/lib/wardLookup";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -22,7 +29,7 @@ const steps = ["Location", "Capture", "Details", "Submit"];
 // Map category to primary department
 const categoryDepartmentMap: Record<string, string> = {
   "Pothole": "Road Maintenance Department",
-  "Accident": "Police Department",          // primary — also notifies Ambulance Services
+  "Accident": "Police Department",
   "Garbage Overflow": "Sanitation Department",
   "Drainage Overflow": "Drainage and Sewer Department",
   "Water Leakage": "Water Supply Department",
@@ -31,9 +38,179 @@ const categoryDepartmentMap: Record<string, string> = {
   "Ambulance Blockage": "Emergency Services",
 };
 
-// Extra departments an issue is visible to (beyond the primary)
 const categoryAdditionalDepts: Record<string, string[]> = {
   "Accident": ["Ambulance Services"],
+};
+
+// Haversine distance in metres — used for UI display in DuplicateWarningSheet
+const distMetres = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/** Bottom sheet shown when a duplicate nearby report is detected */
+const DuplicateWarningSheet = ({
+  duplicate,
+  userLocation,
+  onVote,
+  onSubmitSeparately,
+  onDismiss,
+  submitting,
+}: {
+  duplicate: CivicIssue;
+  userLocation: { lat: number; lng: number };
+  onVote: () => void;
+  onSubmitSeparately: () => void;
+  onDismiss: () => void;
+  submitting: boolean;
+}) => {
+  const metres = Math.round(
+    typeof duplicate.lat === "number" && typeof duplicate.lng === "number"
+      ? distMetres(userLocation.lat, userLocation.lng, duplicate.lat, duplicate.lng)
+      : 0
+  );
+  const msAgo = Date.now() - new Date(duplicate.reportedAt).getTime();
+  const daysAgo = Math.floor(msAgo / 86_400_000);
+  const hoursAgo = Math.floor(msAgo / 3_600_000);
+  const timeLabel = daysAgo === 0
+    ? hoursAgo === 0 ? "Just now" : `${hoursAgo}h ago`
+    : daysAgo === 1 ? "Yesterday" : `${daysAgo} days ago`;
+
+  const statusMeta: Record<CivicIssue["status"], { label: string; cls: string }> = {
+    open: { label: "Open", cls: "bg-destructive/10 text-destructive" },
+    in_progress: { label: "In Progress", cls: "bg-warning/10 text-warning" },
+    resolved: { label: "Resolved", cls: "bg-success/10 text-success" },
+    rejected: { label: "Rejected", cls: "bg-muted text-muted-foreground" },
+  };
+  const status = statusMeta[duplicate.status];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        key="dup-backdrop"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000]"
+        onClick={onDismiss}
+      />
+
+      {/* Bottom sheet */}
+      <motion.div
+        key="dup-sheet"
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 32, stiffness: 320 }}
+        className="fixed bottom-0 inset-x-0 z-[2001] max-w-lg mx-auto"
+      >
+        <div className="bg-card rounded-t-3xl border-t border-x border-border shadow-2xl flex flex-col max-h-[90vh]">
+
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/25" />
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-5 pt-3 pb-4 space-y-4 min-h-0">
+
+            {/* Header */}
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-warning/15 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-warning" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-display font-bold text-foreground leading-tight">
+                  Similar Complaint Already Filed
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Someone nearby already reported this. Adding your voice helps prioritise it faster.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={onDismiss}
+                className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Existing issue card */}
+            <div className="rounded-2xl border border-border bg-muted/40 overflow-hidden">
+              {duplicate.imageUrl && (
+                <img
+                  src={duplicate.imageUrl}
+                  alt="Existing report"
+                  className="w-full h-36 object-cover"
+                />
+              )}
+              <div className="p-4 space-y-3">
+                {/* Category + status */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold bg-primary/10 text-primary px-2.5 py-1 rounded-full">
+                    {duplicate.category}
+                  </span>
+                  <span className={cn("text-[11px] font-medium px-2.5 py-1 rounded-full", status.cls)}>
+                    {status.label}
+                  </span>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center bg-card rounded-xl p-2.5 border border-border">
+                    <p className="text-lg font-bold text-foreground leading-none">{duplicate.reportCount ?? 1}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Reports</p>
+                  </div>
+                  <div className="text-center bg-card rounded-xl p-2.5 border border-border">
+                    <p className="text-lg font-bold text-foreground leading-none">{metres}m</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Away</p>
+                  </div>
+                  <div className="text-center bg-card rounded-xl p-2.5 border border-border">
+                    <p className="text-[13px] font-bold text-foreground leading-none">{timeLabel}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Reported</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Info note */}
+            <div className="flex items-start gap-2.5 bg-muted/60 rounded-xl px-3 py-2.5 text-xs text-muted-foreground">
+              <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              <span>Issues with more reports are escalated to severe and addressed sooner.</span>
+            </div>
+          </div>
+
+          {/* Fixed action footer */}
+          <div className="flex-shrink-0 px-5 pt-3 pb-6 border-t border-border bg-card space-y-2.5">
+            <Button
+              className="w-full gradient-primary text-primary-foreground h-12 text-sm font-semibold rounded-xl"
+              onClick={onVote}
+              disabled={submitting}
+            >
+              {submitting
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
+                : <><Users className="w-4 h-4 mr-2" /> Yes, Add My Voice</>
+              }
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full h-10 text-sm text-muted-foreground hover:text-foreground rounded-xl"
+              onClick={onSubmitSeparately}
+              disabled={submitting}
+            >
+              No — this is a different issue, report separately
+            </Button>
+          </div>
+
+        </div>
+      </motion.div>
+    </>
+  );
 };
 
 const CitizenReport = () => {
@@ -57,9 +234,10 @@ const CitizenReport = () => {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const submittingRef = useRef(false); // Prevent race condition on double-tap
-  // Keep a ref in sync with cameraStream so stopCamera can always see the
-  // latest stream without needing to be re-created on every render.
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [duplicateIssue, setDuplicateIssue] = useState<CivicIssue | null>(null);
+  const [slaSettings, setSlaSettings] = useState<Record<string, number>>({});
+  const submittingRef = useRef(false);
   const cameraStreamRef = useRef<MediaStream | null>(null);
 
   const stopCamera = useCallback(() => {
@@ -102,7 +280,6 @@ const CitizenReport = () => {
     }
   }, []);
 
-  // Stop any active watchPosition
   const stopWatch = useCallback(() => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -123,8 +300,7 @@ const CitizenReport = () => {
       return;
     }
 
-    // Hard timeout — accept whatever we have after 15 seconds
-    const ACCURACY_GOAL = 30; // metres — "good enough" threshold
+    const ACCURACY_GOAL = 30;
     const HARD_TIMEOUT_MS = 15_000;
     let settled = false;
     let bestLat: number | null = null;
@@ -139,7 +315,6 @@ const CitizenReport = () => {
       setLocationAccuracy(accuracy);
       setLocating(false);
       setStep(1);
-      // Ward detection in background
       getWardFromCoords(lat, lng).then((ward) => { if (ward) setDetectedWard(ward); });
     };
 
@@ -156,10 +331,8 @@ const CitizenReport = () => {
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-        // Always update live preview
         setLocation({ lat, lng });
         setLocationAccuracy(accuracy);
-        // Track best reading
         if (bestAccuracy === null || accuracy < bestAccuracy) {
           bestLat = lat; bestLng = lng; bestAccuracy = accuracy;
         }
@@ -183,8 +356,29 @@ const CitizenReport = () => {
     watchIdRef.current = id;
   }, [stopWatch]);
 
-  // Clean up watchPosition when component unmounts
   useEffect(() => { return () => stopWatch(); }, [stopWatch]);
+
+  // Load SLA settings from Firestore (admin-configured); fall back to localStorage cache
+  useEffect(() => {
+    getSlaSettings()
+      .then(settings => {
+        if (Object.keys(settings).length > 0) {
+          setSlaSettings(settings);
+          localStorage.setItem("civicsense_sla", JSON.stringify(settings));
+        } else {
+          try {
+            const cached = localStorage.getItem("civicsense_sla");
+            if (cached) setSlaSettings(JSON.parse(cached));
+          } catch { /* ignore */ }
+        }
+      })
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem("civicsense_sla");
+          if (cached) setSlaSettings(JSON.parse(cached));
+        } catch { /* ignore */ }
+      });
+  }, []);
 
   useEffect(() => {
     if (step === 1 && !photoTaken && !cameraError) {
@@ -195,7 +389,6 @@ const CitizenReport = () => {
     return () => stopCamera();
   }, [step, photoTaken, cameraError, startCamera, stopCamera]);
 
-  // Look up the responsible authority officer whenever ward + category are known
   useEffect(() => {
     const ward = detectedWard || user?.ward;
     const dept = categoryDepartmentMap[selectedCategory];
@@ -207,7 +400,6 @@ const CitizenReport = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Step 1: Resize — cap longest edge at 1024px (good enough for civic reports)
     const MAX_DIM = 1024;
     let w = width, h = height;
     if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
@@ -218,21 +410,16 @@ const CitizenReport = () => {
     if (!ctx) return;
     ctx.drawImage(imageSource, 0, 0, w, h);
 
-    // Step 2: Adaptive quality — keep halving quality until output ≤ 150 KB
-    const TARGET_BYTES = 150 * 1024; // 150 KB
+    const TARGET_BYTES = 150 * 1024;
     let quality = 0.75;
     let dataUrl = canvas.toDataURL("image/jpeg", quality);
-
-    // Each base64 char ≈ 0.75 bytes; subtract the data:image/jpeg;base64, prefix
     const byteLength = (b64: string) => Math.round((b64.length - 22) * 0.75);
-
     while (byteLength(dataUrl) > TARGET_BYTES && quality > 0.15) {
       quality = Math.max(quality - 0.1, 0.15);
       dataUrl = canvas.toDataURL("image/jpeg", quality);
     }
 
     const finalKB = Math.round(byteLength(dataUrl) / 1024);
-
     setPhotoPreview(dataUrl);
     setPhotoTaken(true);
     stopCamera();
@@ -255,22 +442,18 @@ const CitizenReport = () => {
     setCameraError(null);
   };
 
-  const handleSubmit = async () => {
-    // Race condition guard — prevent double-tap submissions
+  // Core submission — called after duplicate decision is made
+  const doSubmit = async (duplicateToVoteOn: CivicIssue | null) => {
     if (submittingRef.current) return;
-    if (!selectedCategory || !location || !user) {
-      toast.error("Missing required information");
-      return;
-    }
+    if (!selectedCategory || !location || !user) return;
+
     submittingRef.current = true;
     setSubmitting(true);
 
     try {
       let finalImageUrl = "";
-
       if (photoPreview) {
         try {
-          // Convert dataURL to blob and upload to Firebase Storage
           const res = await fetch(photoPreview);
           const blob = await res.blob();
           finalImageUrl = await uploadToCloudinary(blob);
@@ -283,18 +466,12 @@ const CitizenReport = () => {
       const dept = categoryDepartmentMap[selectedCategory] ?? "General";
       const additionalDepts = categoryAdditionalDepts[selectedCategory] ?? [];
       const isAccident = selectedCategory === "Accident";
-      // Use GPS-detected ward; fall back to citizen's registered ward
       const issueWard = detectedWard || user.ward || "";
 
-      // Check for a nearby duplicate (same department + location within 100m)
-      const duplicate = await findNearbyDuplicate(location.lat, location.lng, dept, issueWard);
-
       let createdIssue: CivicIssue;
-      if (duplicate) {
-        // Vote on the existing issue (increments reportCount, upgrades severity at 5+)
-        await voteOnIssue(duplicate.id, duplicate.reportCount ?? 1);
 
-        // Save a shadow record so it appears in this citizen's "My Reports" page
+      if (duplicateToVoteOn) {
+        await voteOnIssue(duplicateToVoteOn.id, duplicateToVoteOn.reportCount ?? 1);
         const shadowIssue: Omit<CivicIssue, "id" | "reportedAt"> = {
           title: selectedCategory,
           description,
@@ -302,23 +479,25 @@ const CitizenReport = () => {
           location: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
           lat: location.lat,
           lng: location.lng,
-          status: duplicate.status,
-          severity: duplicate.severity,
+          status: duplicateToVoteOn.status,
+          severity: duplicateToVoteOn.severity,
           department: dept,
           ...(additionalDepts.length > 0 && { additionalDepartments: additionalDepts }),
           reportCount: 1,
           ward: issueWard,
           city: user.city,
           userId: user.uid,
-          imageUrl: finalImageUrl || duplicate.imageUrl,
+          imageUrl: finalImageUrl || duplicateToVoteOn.imageUrl,
           timeline: [{ label: "Voted on existing issue", date: new Date().toISOString(), done: true }],
           isDuplicate: true,
-          originalIssueId: duplicate.id,
+          originalIssueId: duplicateToVoteOn.id,
         };
         createdIssue = await createIssue(shadowIssue);
-        toast.info("A similar issue in your area is already being tracked. Your vote has been counted!");
+        toast.success("Your voice has been added! This issue is now higher priority.", { duration: 4000 });
       } else {
         const autoSeverity = categorySeverityMap[selectedCategory] ?? "medium";
+        const slaDays = slaSettings[selectedCategory] ?? 3;
+        const visibleAfter = slaDays === 0 ? undefined : new Date(Date.now() + slaDays * 86_400_000).toISOString();
         const newIssue: Omit<CivicIssue, "id" | "reportedAt"> = {
           title: selectedCategory,
           description,
@@ -336,11 +515,12 @@ const CitizenReport = () => {
           userId: user.uid,
           imageUrl: finalImageUrl,
           timeline: [{ label: "Issue reported", date: new Date().toISOString(), done: true }],
+          ...(visibleAfter && { visibleAfter }),
         };
         createdIssue = await createIssue(newIssue);
       }
 
-      // Notify authority officers in the detected ward
+      // Notify ward authorities
       if (issueWard) {
         try {
           const wardAuthorities = await getUsersByWardAndRole(issueWard, "authority");
@@ -362,7 +542,6 @@ const CitizenReport = () => {
         }
       }
 
-      // For accidents: also notify ALL ambulance authorities (cross-ward — nearest response)
       if (isAccident) {
         try {
           const ambulanceAuthorities = await getAuthoritiesByDepartment("Ambulance Services");
@@ -382,15 +561,15 @@ const CitizenReport = () => {
         }
       }
 
-      if (!duplicate) {
+      if (!duplicateToVoteOn) {
         if (isAccident) {
           toast.success("Accident reported! Police and Ambulance have been notified.", { duration: 5000 });
         } else {
           toast.success("Report submitted successfully!");
         }
       }
-      navigate("/citizen/my-reports");
 
+      navigate("/citizen/my-reports");
     } catch (error) {
       console.error("Submission error", error);
       toast.error("Failed to submit report. Please try again.");
@@ -399,6 +578,46 @@ const CitizenReport = () => {
       setSubmitting(false);
     }
   };
+
+  // Called when Submit button is pressed — checks for duplicate first
+  const handleCheckAndSubmit = async () => {
+    if (submittingRef.current || checkingDuplicate) return;
+    if (!selectedCategory || !location || !user) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    const dept = categoryDepartmentMap[selectedCategory] ?? "General";
+    const issueWard = detectedWard || user.ward || "";
+
+    setCheckingDuplicate(true);
+    try {
+      // 50 m radius — generous enough for GPS imprecision (~±30 m per device)
+      const duplicate = await findNearbyDuplicate(location.lat, location.lng, dept, issueWard, 50);
+      if (duplicate) {
+        setDuplicateIssue(duplicate);
+      } else {
+        await doSubmit(null);
+      }
+    } catch {
+      toast.error("Could not check for duplicates. Please try again.");
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  };
+
+  const handleVoteOnDuplicate = async () => {
+    const dup = duplicateIssue;
+    setDuplicateIssue(null);
+    await doSubmit(dup);
+  };
+
+  const handleSubmitSeparately = async () => {
+    setDuplicateIssue(null);
+    await doSubmit(null);
+  };
+
+  const isSubmitBusy = submitting || checkingDuplicate;
 
   return (
     <div className="min-h-screen bg-background pb-safe-nav">
@@ -449,7 +668,6 @@ const CitizenReport = () => {
 
                 {locating && location ? (
                   <div className="w-full mb-5 space-y-2">
-                    {/* Live accuracy indicator */}
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                       <span className="text-xs text-muted-foreground">Improving accuracy…</span>
@@ -464,7 +682,6 @@ const CitizenReport = () => {
                         </span>
                       )}
                     </div>
-                    {/* Accuracy bar — stepped Tailwind widths avoid inline styles */}
                     {locationAccuracy !== null && (
                       <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                         <div
@@ -576,7 +793,7 @@ const CitizenReport = () => {
                 <div>
                   <Label className="text-sm font-medium mb-2 block">Category *</Label>
                   <div className="flex flex-wrap gap-2">
-                    {issueCategories.map((cat) => (
+                    {getActiveCategories().map((cat) => (
                       <button
                         key={cat}
                         type="button"
@@ -597,7 +814,6 @@ const CitizenReport = () => {
                     ))}
                   </div>
 
-                  {/* Accident urgency banner */}
                   {selectedCategory === "Accident" && (
                     <div className="mt-3 bg-destructive/10 border border-destructive/30 rounded-xl p-3 flex items-start gap-2">
                       <span className="text-base flex-shrink-0">🚨</span>
@@ -723,17 +939,17 @@ const CitizenReport = () => {
                   )}
                 </div>
                 <SparkleButton
-                  onClick={handleSubmit}
-                  disabled={submitting || !selectedCategory || !location}
+                  onClick={handleCheckAndSubmit}
+                  disabled={isSubmitBusy || !selectedCategory || !location}
                   className={cn(
                     "w-full h-10 px-4 py-2 rounded-md",
-                    (submitting || !selectedCategory || !location)
+                    (isSubmitBusy || !selectedCategory || !location)
                       ? "bg-muted text-muted-foreground cursor-not-allowed"
                       : "gradient-primary text-primary-foreground"
                   )}
                 >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  {submitting ? "Submitting..." : "Submit Report"}
+                  {isSubmitBusy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  {checkingDuplicate ? "Checking…" : submitting ? "Submitting…" : "Submit Report"}
                 </SparkleButton>
               </div>
             </motion.div>
@@ -750,6 +966,20 @@ const CitizenReport = () => {
           </button>
         )}
       </div>
+
+      {/* Duplicate warning sheet */}
+      <AnimatePresence>
+        {duplicateIssue && location && (
+          <DuplicateWarningSheet
+            duplicate={duplicateIssue}
+            userLocation={location}
+            onVote={handleVoteOnDuplicate}
+            onSubmitSeparately={handleSubmitSeparately}
+            onDismiss={() => setDuplicateIssue(null)}
+            submitting={submitting}
+          />
+        )}
+      </AnimatePresence>
 
       <BottomNav />
     </div>

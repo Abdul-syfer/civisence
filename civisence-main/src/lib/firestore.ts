@@ -229,7 +229,9 @@ export const subscribeToNotifications = (
         limit(20)
     );
     return onSnapshot(q, (snapshot) => {
-        const notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+        const notifications = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as AppNotification))
+            .filter(n => !n.cleared);
         callback(notifications);
     });
 };
@@ -238,10 +240,16 @@ export const markNotificationRead = async (notifId: string) => {
     await updateDoc(doc(db, "notifications", notifId), { read: true });
 };
 
+// Soft-clears notifications from the bell view; history still shows them all
 export const clearNotifications = async (userId: string) => {
+    if (!userId) throw new Error("userId is required to clear notifications");
     const q = query(collection(db, "notifications"), where("userId", "==", userId));
     const snap = await getDocs(q);
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    // Filter client-side: only update docs not already cleared (handles missing field too)
+    const toUpdate = snap.docs.filter(d => !d.data().cleared);
+    for (const d of toUpdate) {
+        await updateDoc(d.ref, { cleared: true });
+    }
 };
 
 export const getAllNotifications = async (userId: string): Promise<AppNotification[]> => {
@@ -330,6 +338,16 @@ export const getAuthoritiesByDepartment = async (department: string): Promise<Us
     );
     const snap = await getDocs(q);
     return snap.docs.map(d => d.data() as UserProfile);
+};
+
+// App-wide settings (stored in Firestore so all clients share them)
+export const saveSlaSettings = async (sla: Record<string, number>): Promise<void> => {
+    await setDoc(doc(db, "settings", "sla"), sla);
+};
+
+export const getSlaSettings = async (): Promise<Record<string, number>> => {
+    const snap = await getDoc(doc(db, "settings", "sla"));
+    return snap.exists() ? (snap.data() as Record<string, number>) : {};
 };
 
 // Comments

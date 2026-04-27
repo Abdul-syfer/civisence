@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import BottomNav from "@/components/BottomNav";
 import { CivicIssue, issueCategories } from "@/lib/types";
 import { subscribeToIssuesByWard, updateIssueStatus, updateIssueFields, createNotification, incrementAuthorityResolvedCount } from "@/lib/firestore";
@@ -23,7 +23,7 @@ const statusStyles: Record<CivicIssue["status"], string> = {
   rejected: "bg-muted text-muted-foreground",
 };
 
-/** Dialog to capture resolved photo + authority GPS location */
+/** Bottom-sheet dialog for authority to capture resolved photo + GPS */
 const ResolvePhotoDialog = ({
   issue,
   onConfirm,
@@ -34,12 +34,12 @@ const ResolvePhotoDialog = ({
   onCancel: () => void;
 }) => {
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraFileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(true);
 
-  // Capture authority's GPS when dialog opens
   useEffect(() => {
     if (!navigator.geolocation) { setLocating(false); return; }
     navigator.geolocation.getCurrentPosition(
@@ -59,10 +59,7 @@ const ResolvePhotoDialog = ({
   };
 
   const handleConfirm = async () => {
-    if (!preview) {
-      toast.error("Please take a photo of the resolved issue before confirming.");
-      return;
-    }
+    if (!preview) return;
     setUploading(true);
     try {
       const res = await fetch(preview);
@@ -78,107 +75,162 @@ const ResolvePhotoDialog = ({
 
   return (
     <>
+      {/* Backdrop */}
       <motion.div
         key="backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000]"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000]"
         onClick={onCancel}
       />
+
+      {/* Bottom Sheet */}
       <motion.div
-        key="dialog"
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-[2001] max-w-sm mx-auto"
+        key="sheet"
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 32, stiffness: 320 }}
+        className="fixed bottom-0 inset-x-0 z-[2001] max-w-lg mx-auto flex flex-col"
       >
-        <div className="bg-card rounded-2xl border border-border shadow-2xl p-5 space-y-4">
-          <div className="flex items-start justify-between">
+        <div className="bg-card rounded-t-3xl border-t border-x border-border shadow-2xl flex flex-col max-h-[88vh]">
+
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/25" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
             <div>
               <h3 className="font-semibold text-foreground">Mark as Resolved</h3>
               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{issue.title}</p>
             </div>
-            <button type="button" aria-label="Cancel" onClick={onCancel} className="text-muted-foreground hover:text-foreground p-1">
+            <button
+              type="button"
+              aria-label="Cancel"
+              onClick={onCancel}
+              className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Location status */}
-          <div className={cn(
-            "flex items-center gap-2 text-xs px-3 py-2 rounded-lg",
-            location ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
-          )}>
-            {locating
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Getting your location…</>
-              : location
-                ? <><Navigation2 className="w-3.5 h-3.5" /> Location captured — {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</>
-                : <><Navigation2 className="w-3.5 h-3.5" /> Location unavailable (proceed anyway)</>
-            }
-          </div>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
 
-          {/* Original photo */}
-          {issue.imageUrl && (
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Before (original)</p>
-              <img src={issue.imageUrl} alt="Before" className="w-full h-24 object-cover rounded-xl border border-border" />
-            </div>
-          )}
-
-          {/* Resolved photo — REQUIRED */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">After photo</p>
-              <span className="text-[10px] text-destructive font-medium">Required</span>
-            </div>
-            {preview ? (
-              <div className="relative">
-                <img src={preview} alt="After" className="w-full h-36 object-cover rounded-xl border border-success/40" />
-                <button
-                  type="button"
-                  aria-label="Remove photo"
-                  onClick={() => setPreview(null)}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-                <div className="absolute bottom-2 left-2 text-[9px] font-bold bg-success/80 text-white px-1.5 py-0.5 rounded-full">AFTER</div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full h-28 rounded-xl border-2 border-dashed border-destructive/30 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-              >
-                <Camera className="w-7 h-7" />
-                <span className="text-xs font-medium">Take / upload resolved photo</span>
-                <span className="text-[10px] text-destructive/70">Required to mark as resolved</span>
-              </button>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              aria-label="Upload resolved photo"
-              className="hidden"
-              onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
-            />
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="flex-1" onClick={onCancel} disabled={uploading}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className={cn("flex-1", preview ? "bg-success text-success-foreground hover:bg-success/90" : "opacity-50 bg-success text-success-foreground cursor-not-allowed")}
-              onClick={handleConfirm}
-              disabled={uploading || !preview}
-            >
-              {uploading
-                ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Uploading…</>
-                : <><CheckCircle className="w-3 h-3 mr-1" /> Confirm Resolved</>
+            {/* Location status */}
+            <div className={cn(
+              "flex items-center gap-2 text-xs px-3 py-2.5 rounded-xl",
+              location ? "bg-success/10 text-success" : locating ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"
+            )}>
+              {locating
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> Getting your location…</>
+                : location
+                  ? <><Navigation2 className="w-3.5 h-3.5 flex-shrink-0" /> Location captured · {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</>
+                  : <><Navigation2 className="w-3.5 h-3.5 flex-shrink-0" /> Location unavailable — proceed anyway</>
               }
-            </Button>
+            </div>
+
+            {/* Before photo — compact */}
+            {issue.imageUrl && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Before (Original)</p>
+                <img src={issue.imageUrl} alt="Before" className="w-full h-24 object-cover rounded-xl border border-border" />
+              </div>
+            )}
+
+            {/* After photo */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">After Photo</p>
+                <span className="text-[10px] text-destructive font-semibold">Required</span>
+              </div>
+
+              {preview ? (
+                <div className="relative">
+                  <img src={preview} alt="After" className="w-full h-48 object-cover rounded-xl border-2 border-success/50" />
+                  <button
+                    type="button"
+                    aria-label="Remove photo"
+                    onClick={() => setPreview(null)}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 text-[9px] font-bold bg-success/80 text-white px-2 py-0.5 rounded-full">AFTER</div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cameraFileRef.current?.click()}
+                    className="h-28 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all"
+                  >
+                    <Camera className="w-6 h-6" />
+                    <span className="text-[11px] font-medium">Use Camera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="h-28 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all"
+                  >
+                    <ImageIcon className="w-6 h-6" />
+                    <span className="text-[11px] font-medium">From Gallery</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Camera capture input */}
+              <input
+                ref={cameraFileRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                aria-label="Capture photo with camera"
+                className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
+              />
+              {/* Gallery / file input */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                aria-label="Upload resolved photo from gallery"
+                className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }}
+              />
+            </div>
           </div>
+
+          {/* Fixed action footer — always visible */}
+          <div className="flex-shrink-0 px-5 pt-3 pb-6 border-t border-border bg-card">
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={onCancel}
+                disabled={uploading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className={cn(
+                  "flex-1 font-semibold transition-all",
+                  preview
+                    ? "bg-success text-success-foreground hover:bg-success/90"
+                    : "bg-success/40 text-success-foreground/60 cursor-not-allowed"
+                )}
+                onClick={handleConfirm}
+                disabled={uploading || !preview}
+              >
+                {uploading
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading…</>
+                  : <><CheckCircle className="w-4 h-4 mr-2" /> Confirm Resolved</>
+                }
+              </Button>
+            </div>
+          </div>
+
         </div>
       </motion.div>
     </>
@@ -477,7 +529,7 @@ const AuthorityReports = () => {
                               )}
                             </div>
 
-                            {/* Comment button — always visible */}
+                            {/* Comment button */}
                             <button
                               type="button"
                               onClick={() => setCommentsIssue(issue)}
@@ -497,7 +549,7 @@ const AuthorityReports = () => {
         </AnimatePresence>
       </div>
 
-      {/* Resolve photo dialog */}
+      {/* Resolve photo bottom sheet */}
       <AnimatePresence>
         {resolveTarget && (
           <ResolvePhotoDialog

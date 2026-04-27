@@ -30,6 +30,7 @@ export interface CivicIssue {
     confirmCount?: number;
     isDuplicate?: boolean;
     originalIssueId?: string;
+    visibleAfter?: string; // ISO timestamp — citizens can't see this issue until this time passes
 }
 
 export interface IssueComment {
@@ -63,6 +64,7 @@ export interface AppNotification {
     title: string;
     message: string;
     read: boolean;
+    cleared?: boolean; // soft-cleared from bell; still visible in history
     createdAt: string;
     issueId?: string;
 }

@@ -379,10 +379,8 @@ function Footer() {
             </div>
             <p className="text-xs text-white/50 leading-relaxed mb-3">Smart Civic Reporting Platform</p>
             <div className="space-y-1 text-xs text-white/60">
-              <p className="font-medium text-white/80">Final Year Project – Computer Science</p>
-              <p>Department of Information Technology</p>
-              <p>XYZ College of Engineering</p>
-              <p>Batch 2026</p>
+              <p className="font-medium text-white/80">Final Year Project</p>
+              <p>Department of Computer Science</p>
             </div>
           </div>
 
@@ -401,7 +399,7 @@ function Footer() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-4">Project Guide</p>
               <div className="text-sm">
-                <p className="font-semibold text-white">Prof. KALAIVANI</p>
+                <p className="font-semibold text-white">Mr.M.PRAKESH</p>
                 <p className="text-xs text-white/50 mt-0.5">Professor, Dept. of CS</p>
               </div>
             </div>
